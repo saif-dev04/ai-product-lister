@@ -31,6 +31,13 @@
     },
     "plugins": [
       "expo-router"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "30ffd233-53dc-41a1-89ff-2f9cfab97de5"
+      }
+    },
+    "owner": "saifi.dev04"
   }
 }
