@@ -1,0 +1,48 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="1024" height="1024" rx="224" fill="url(#gradient)"/>
+
+  <!-- Product Box Shape -->
+  <g transform="translate(200, 280)">
+    <!-- Box body -->
+    <path d="M312 0L624 120V400L312 520L0 400V120L312 0Z" fill="white" fill-opacity="0.95"/>
+    <!-- Box top face -->
+    <path d="M312 0L624 120L312 240L0 120L312 0Z" fill="white"/>
+    <!-- Box left face shadow -->
+    <path d="M0 120L312 240V520L0 400V120Z" fill="white" fill-opacity="0.85"/>
+    <!-- Box right face -->
+    <path d="M624 120L312 240V520L624 400V120Z" fill="white" fill-opacity="0.75"/>
+    <!-- Box fold line -->
+    <path d="M312 240V520" stroke="url(#gradient)" stroke-width="4" stroke-opacity="0.3"/>
+    <path d="M0 120L312 240L624 120" stroke="url(#gradient)" stroke-width="4" stroke-opacity="0.2"/>
+  </g>
+
+  <!-- AI Sparkle - Top Right -->
+  <g transform="translate(700, 150)">
+    <path d="M60 0L75 45L120 60L75 75L60 120L45 75L0 60L45 45L60 0Z" fill="white"/>
+  </g>
+
+  <!-- AI Sparkle - Small Top -->
+  <g transform="translate(580, 120)">
+    <path d="M30 0L37.5 22.5L60 30L37.5 37.5L30 60L22.5 37.5L0 30L22.5 22.5L30 0Z" fill="white" fill-opacity="0.8"/>
+  </g>
+
+  <!-- AI Sparkle - Left -->
+  <g transform="translate(120, 320)">
+    <path d="M40 0L50 30L80 40L50 50L40 80L30 50L0 40L30 30L40 0Z" fill="white" fill-opacity="0.7"/>
+  </g>
+
+  <!-- AI Sparkle - Bottom -->
+  <g transform="translate(750, 650)">
+    <path d="M35 0L43.75 26.25L70 35L43.75 43.75L35 70L26.25 43.75L0 35L26.25 26.25L35 0Z" fill="white" fill-opacity="0.6"/>
+  </g>
+
+  <!-- Gradient Definition -->
+  <defs>
+    <linearGradient id="gradient" x1="0" y1="0" x2="1024" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#667EEA"/>
+      <stop offset="50%" stop-color="#764BA2"/>
+      <stop offset="100%" stop-color="#F093FB"/>
+    </linearGradient>
+  </defs>
+</svg>
