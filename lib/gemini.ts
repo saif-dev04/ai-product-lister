@@ -22,19 +22,29 @@ export type ListingData = {
 
 let genAI: GoogleGenerativeAI | null = null;
 let chatSession: ChatSession | null = null;
+let currentModelName: string = '';
+
+// Model names for image generation
+const QUALITY_MODEL = 'gemini-2.0-flash-exp'; // Quality model
+const FAST_MODEL = 'gemini-2.0-flash-exp'; // Fast model (same for now, both work)
 
 export function initGemini(apiKey: string) {
   genAI = new GoogleGenerativeAI(apiKey);
   chatSession = null;
 }
 
-export function getImageModel(preferQuality: boolean) {
+export function getImageModel(preferQuality: boolean, forceFallback: boolean = false) {
   if (!genAI) throw new Error('Gemini not initialized. Please set API key in Settings.');
 
-  // Nano Banana models for image generation
-  // Fast: gemini-2.5-flash-image
-  // Quality: gemini-3-pro-image-preview
-  const modelName = preferQuality ? 'gemini-3-pro-image-preview' : 'gemini-2.5-flash-image';
+  // Use fallback model if forced or if quality model keeps failing
+  let modelName: string;
+  if (forceFallback) {
+    modelName = FAST_MODEL;
+  } else {
+    modelName = preferQuality ? QUALITY_MODEL : FAST_MODEL;
+  }
+
+  currentModelName = modelName;
 
   return genAI.getGenerativeModel({
     model: modelName,
@@ -42,6 +52,16 @@ export function getImageModel(preferQuality: boolean) {
       responseModalities: ['Text', 'Image'],
     } as any,
   });
+}
+
+// Check if error is retryable (503, 429, etc.)
+function isRetryableError(error: any): boolean {
+  const message = error?.message || '';
+  return message.includes('503') ||
+         message.includes('429') ||
+         message.includes('high demand') ||
+         message.includes('overloaded') ||
+         message.includes('temporarily unavailable');
 }
 
 export function getTextModel() {
@@ -59,9 +79,10 @@ export async function startImageChat(
   initialPrompt: string
 ): Promise<ImageEditResult> {
   initGemini(apiKey);
-  const model = getImageModel(preferQuality);
 
-  const chat = model.startChat();
+  // Try with preferred model first
+  let model = getImageModel(preferQuality, false);
+  let chat = model.startChat();
   chatSession = chat;
 
   try {
@@ -72,6 +93,26 @@ export async function startImageChat(
 
     return parseImageResponse(result);
   } catch (error: any) {
+    // If retryable error and we were using quality model, try fallback
+    if (isRetryableError(error) && preferQuality) {
+      console.log('Primary model unavailable, trying fallback model...');
+      try {
+        model = getImageModel(false, true);
+        chat = model.startChat();
+        chatSession = chat;
+
+        const result = await chat.sendMessage([
+          { inlineData: { mimeType: 'image/jpeg', data: imageBase64 } },
+          { text: initialPrompt },
+        ]);
+
+        const response = parseImageResponse(result);
+        response.text = (response.text || '') + '\n(Used fallback model due to high demand)';
+        return response;
+      } catch (fallbackError: any) {
+        return { error: fallbackError.message || 'Failed to process image' };
+      }
+    }
     return { error: error.message || 'Failed to process image' };
   }
 }
@@ -96,7 +137,9 @@ export async function editImageSingleTurn(
   prompt: string
 ): Promise<ImageEditResult> {
   initGemini(apiKey);
-  const model = getImageModel(preferQuality);
+
+  // Try with preferred model first
+  let model = getImageModel(preferQuality, false);
 
   try {
     const result = await model.generateContent([
@@ -106,6 +149,24 @@ export async function editImageSingleTurn(
 
     return parseImageResponse(result);
   } catch (error: any) {
+    // If retryable error and we were using quality model, try fallback
+    if (isRetryableError(error) && preferQuality) {
+      console.log('Primary model unavailable, trying fallback model...');
+      try {
+        model = getImageModel(false, true);
+
+        const result = await model.generateContent([
+          { inlineData: { mimeType: 'image/jpeg', data: imageBase64 } },
+          { text: prompt },
+        ]);
+
+        const response = parseImageResponse(result);
+        response.text = (response.text || '') + '\n(Used fallback model due to high demand)';
+        return response;
+      } catch (fallbackError: any) {
+        return { error: fallbackError.message || 'Failed to edit image' };
+      }
+    }
     return { error: error.message || 'Failed to edit image' };
   }
 }
@@ -116,7 +177,6 @@ export async function generateImageVariations(
   imageBase64: string
 ): Promise<ImageEditResult[]> {
   initGemini(apiKey);
-  const model = getImageModel(preferQuality);
 
   const prompts = [
     'Show this product with warm studio lighting on a pure white background. Keep the product exactly as it is.',
@@ -127,6 +187,9 @@ export async function generateImageVariations(
 
   const results = await Promise.all(
     prompts.map(async (prompt) => {
+      // Try with preferred model first
+      let model = getImageModel(preferQuality, false);
+
       try {
         const result = await model.generateContent([
           { inlineData: { mimeType: 'image/jpeg', data: imageBase64 } },
@@ -134,6 +197,19 @@ export async function generateImageVariations(
         ]);
         return parseImageResponse(result);
       } catch (error: any) {
+        // If retryable error and we were using quality model, try fallback
+        if (isRetryableError(error) && preferQuality) {
+          try {
+            model = getImageModel(false, true);
+            const result = await model.generateContent([
+              { inlineData: { mimeType: 'image/jpeg', data: imageBase64 } },
+              { text: prompt },
+            ]);
+            return parseImageResponse(result);
+          } catch (fallbackError: any) {
+            return { error: fallbackError.message || 'Failed to generate variation' };
+          }
+        }
         return { error: error.message || 'Failed to generate variation' };
       }
     })
@@ -161,7 +237,9 @@ export async function generateFromText(
   prompt: string
 ): Promise<ImageEditResult> {
   initGemini(apiKey);
-  const model = getImageModel(preferQuality);
+
+  // Try with preferred model first
+  let model = getImageModel(preferQuality, false);
 
   try {
     const result = await model.generateContent([
@@ -170,6 +248,23 @@ export async function generateFromText(
 
     return parseImageResponse(result);
   } catch (error: any) {
+    // If retryable error and we were using quality model, try fallback
+    if (isRetryableError(error) && preferQuality) {
+      console.log('Primary model unavailable, trying fallback model...');
+      try {
+        model = getImageModel(false, true);
+
+        const result = await model.generateContent([
+          { text: `Generate a professional product photo: ${prompt}. Make it look like a high-quality e-commerce product image with clean lighting and background.` },
+        ]);
+
+        const response = parseImageResponse(result);
+        response.text = (response.text || '') + '\n(Used fallback model due to high demand)';
+        return response;
+      } catch (fallbackError: any) {
+        return { error: fallbackError.message || 'Failed to generate image' };
+      }
+    }
     return { error: error.message || 'Failed to generate image' };
   }
 }
