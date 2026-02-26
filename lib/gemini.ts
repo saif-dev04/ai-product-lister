@@ -25,8 +25,8 @@ let chatSession: ChatSession | null = null;
 let currentModelName: string = '';
 
 // Model names for image generation
-const QUALITY_MODEL = 'gemini-2.0-flash-exp'; // Quality model
-const FAST_MODEL = 'gemini-2.0-flash-exp'; // Fast model (same for now, both work)
+const QUALITY_MODEL = 'gemini-2.5-flash-image'; // Quality model for image generation
+const FAST_MODEL = 'gemini-2.5-flash-image'; // Fast model
 
 export function initGemini(apiKey: string) {
   genAI = new GoogleGenerativeAI(apiKey);
@@ -49,7 +49,7 @@ export function getImageModel(preferQuality: boolean, forceFallback: boolean = f
   return genAI.getGenerativeModel({
     model: modelName,
     generationConfig: {
-      responseModalities: ['Text', 'Image'],
+      responseModalities: ['TEXT', 'IMAGE'],
     } as any,
   });
 }

@@ -1,5 +1,4 @@
 // Web-compatible image storage using IndexedDB
-import { Platform } from 'react-native';
 
 const DB_NAME = 'AIProductListerImages';
 const STORE_NAME = 'images';
@@ -33,12 +32,6 @@ export async function saveBase64Image(
   base64Data: string,
   filename: string
 ): Promise<string> {
-  if (Platform.OS !== 'web') {
-    // Use native implementation
-    const native = await import('./imageStorage');
-    return native.saveBase64Image(productId, base64Data, filename);
-  }
-
   const database = await initDB();
   const path = `${productId}/${filename}`;
 
@@ -63,11 +56,6 @@ export async function saveImageFromUri(
   uri: string,
   filename: string
 ): Promise<string> {
-  if (Platform.OS !== 'web') {
-    const native = await import('./imageStorage');
-    return native.saveImageFromUri(productId, uri, filename);
-  }
-
   // For web, fetch the image and convert to base64
   const response = await fetch(uri);
   const blob = await response.blob();
@@ -85,11 +73,6 @@ export async function saveImageFromUri(
 }
 
 export async function loadImageAsBase64(path: string): Promise<string> {
-  if (Platform.OS !== 'web') {
-    const native = await import('./imageStorage');
-    return native.loadImageAsBase64(path);
-  }
-
   const database = await initDB();
 
   return new Promise((resolve, reject) => {
@@ -108,57 +91,7 @@ export async function loadImageAsBase64(path: string): Promise<string> {
   });
 }
 
-export function getFileUri(path: string): string {
-  if (Platform.OS !== 'web') {
-    // Return native file URI
-    return `file://${path}`;
-  }
-
-  // For web, we'll create a data URL when needed
-  return `indexeddb://${path}`;
-}
-
-export async function getImageDataUrl(path: string): Promise<string> {
-  if (Platform.OS !== 'web') {
-    const native = await import('./imageStorage');
-    return `file://${path}`;
-  }
-
-  const base64 = await loadImageAsBase64(path);
-  return `data:image/jpeg;base64,${base64}`;
-}
-
-export async function downloadToGallery(path: string): Promise<boolean> {
-  if (Platform.OS !== 'web') {
-    const native = await import('./imageStorage');
-    return native.downloadToGallery(path);
-  }
-
-  try {
-    const base64 = await loadImageAsBase64(path);
-    const dataUrl = `data:image/jpeg;base64,${base64}`;
-
-    // Create download link
-    const link = document.createElement('a');
-    link.href = dataUrl;
-    link.download = path.split('/').pop() || 'image.jpg';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    return true;
-  } catch (error) {
-    console.error('Download failed:', error);
-    return false;
-  }
-}
-
 export async function deleteProductImages(productId: string): Promise<void> {
-  if (Platform.OS !== 'web') {
-    const native = await import('./imageStorage');
-    return native.deleteProductImages(productId);
-  }
-
   const database = await initDB();
 
   return new Promise((resolve, reject) => {
@@ -179,4 +112,71 @@ export async function deleteProductImages(productId: string): Promise<void> {
       }
     };
   });
+}
+
+export async function deleteImage(filePath: string): Promise<void> {
+  const database = await initDB();
+
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction([STORE_NAME], 'readwrite');
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.delete(filePath);
+
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve();
+  });
+}
+
+export async function downloadToGallery(path: string): Promise<boolean> {
+  try {
+    const base64 = await loadImageAsBase64(path);
+    const dataUrl = `data:image/jpeg;base64,${base64}`;
+
+    // Create download link
+    const link = document.createElement('a');
+    link.href = dataUrl;
+    link.download = path.split('/').pop() || 'image.jpg';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    return true;
+  } catch (error) {
+    console.error('Download failed:', error);
+    return false;
+  }
+}
+
+export async function getProductImages(productId: string): Promise<string[]> {
+  const database = await initDB();
+
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction([STORE_NAME], 'readonly');
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.openCursor();
+    const images: string[] = [];
+
+    request.onerror = () => reject(request.error);
+    request.onsuccess = (event) => {
+      const cursor = (event.target as IDBRequest).result;
+      if (cursor) {
+        if (cursor.value.path.startsWith(productId + '/')) {
+          images.push(cursor.value.path);
+        }
+        cursor.continue();
+      } else {
+        resolve(images);
+      }
+    };
+  });
+}
+
+export function getFileUri(path: string): string {
+  // For web, return a placeholder - actual data URL will be loaded async
+  return `web-image://${path}`;
+}
+
+export async function getImageDataUrl(path: string): Promise<string> {
+  const base64 = await loadImageAsBase64(path);
+  return `data:image/jpeg;base64,${base64}`;
 }
