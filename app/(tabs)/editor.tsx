@@ -6,6 +6,7 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Text,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
@@ -32,9 +33,11 @@ import {
   downloadToGallery,
   getFileUri,
 } from '../../lib/imageStorage';
+import { useResponsive } from '../../lib/useResponsive';
 
 export default function EditorScreen() {
   const router = useRouter();
+  const { isDesktop, isWeb, spacing } = useResponsive();
 
   const { geminiApiKey, preferQuality } = useSettingsStore();
   const { addProduct } = useProductStore();
@@ -58,9 +61,24 @@ export default function EditorScreen() {
   const [isGeneratingVariations, setIsGeneratingVariations] = useState(false);
   const [productId] = useState(() => currentProductId || uuidv4());
 
+  const showAlert = (title: string, message: string, buttons?: any[]) => {
+    if (Platform.OS === 'web') {
+      if (buttons && buttons.length > 1) {
+        const confirmed = window.confirm(`${title}\n\n${message}`);
+        if (confirmed && buttons[1]?.onPress) {
+          buttons[1].onPress();
+        }
+      } else {
+        window.alert(`${title}\n\n${message}`);
+      }
+    } else {
+      Alert.alert(title, message, buttons);
+    }
+  };
+
   const checkApiKey = useCallback(() => {
     if (!geminiApiKey) {
-      Alert.alert(
+      showAlert(
         'API Key Required',
         'Please add your Gemini API key in Settings to use AI features.',
         [
@@ -75,12 +93,18 @@ export default function EditorScreen() {
 
   const pickImage = async (useCamera: boolean) => {
     try {
+      // On web, camera is not supported, always use gallery
+      if (Platform.OS === 'web' && useCamera) {
+        showAlert('Not Supported', 'Camera is not supported on web. Please upload an image instead.');
+        return;
+      }
+
       const permissionResult = useCamera
         ? await ImagePicker.requestCameraPermissionsAsync()
         : await ImagePicker.requestMediaLibraryPermissionsAsync();
 
       if (!permissionResult.granted) {
-        Alert.alert('Permission Required', `Please grant ${useCamera ? 'camera' : 'gallery'} access to continue.`);
+        showAlert('Permission Required', `Please grant ${useCamera ? 'camera' : 'gallery'} access to continue.`);
         return;
       }
 
@@ -110,14 +134,13 @@ export default function EditorScreen() {
         resetChat();
       }
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to pick image');
+      showAlert('Error', error.message || 'Failed to pick image');
     }
   };
 
   const handleSendMessage = async (text: string) => {
     if (!checkApiKey() || !currentImagePath) return;
 
-    // Add user message
     const userMessage: ChatMessage = { role: 'user', text };
     addChatMessage(userMessage);
     setIsProcessing(true);
@@ -133,7 +156,6 @@ export default function EditorScreen() {
       if (result.error) {
         addChatMessage({ role: 'model', text: `Error: ${result.error}` });
       } else {
-        // Save the edited image if one was returned
         if (result.imageBase64) {
           const editedPath = await saveBase64Image(productId, result.imageBase64, `edit_${Date.now()}.jpg`);
           setCurrentImage(editedPath);
@@ -206,10 +228,10 @@ export default function EditorScreen() {
       setVariations(variationPaths);
 
       if (variationPaths.length < 4) {
-        Alert.alert('Partial Results', `Generated ${variationPaths.length} of 4 variations.`);
+        showAlert('Partial Results', `Generated ${variationPaths.length} of 4 variations.`);
       }
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to generate variations');
+      showAlert('Error', error.message || 'Failed to generate variations');
     } finally {
       setIsGeneratingVariations(false);
     }
@@ -218,8 +240,7 @@ export default function EditorScreen() {
   const handleSelectVariation = (index: number) => {
     selectVariation(index);
     if (variations[index]) {
-      // Update current image to the selected variation
-      setCurrentImage(variations[index].replace('file://', ''));
+      setCurrentImage(variations[index].replace('file://', '').replace('web-image://', ''));
     }
   };
 
@@ -228,9 +249,9 @@ export default function EditorScreen() {
 
     const success = await downloadToGallery(currentImagePath);
     if (success) {
-      Alert.alert('Downloaded', 'Image saved to your gallery.');
+      showAlert('Downloaded', Platform.OS === 'web' ? 'Image download started.' : 'Image saved to your gallery.');
     } else {
-      Alert.alert('Error', 'Failed to save image. Please grant media library permission.');
+      showAlert('Error', 'Failed to save image.');
     }
   };
 
@@ -239,7 +260,7 @@ export default function EditorScreen() {
 
     try {
       const now = new Date().toISOString();
-      const allImages = [currentImagePath, ...variations.map((v) => v.replace('file://', ''))];
+      const allImages = [currentImagePath, ...variations.map((v) => v.replace('file://', '').replace('web-image://', ''))];
 
       addProduct({
         id: productId,
@@ -258,7 +279,7 @@ export default function EditorScreen() {
         updatedAt: now,
       });
 
-      Alert.alert('Saved', 'Product saved! You can now generate a listing.', [
+      showAlert('Saved', 'Product saved! You can now generate a listing.', [
         { text: 'Stay Here', style: 'cancel' },
         {
           text: 'View Products',
@@ -269,12 +290,75 @@ export default function EditorScreen() {
         },
       ]);
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to save product');
+      showAlert('Error', error.message || 'Failed to save product');
     }
   };
 
   const imageUri = currentImagePath ? getFileUri(currentImagePath) : null;
 
+  // Desktop two-column layout
+  if (isDesktop) {
+    return (
+      <View style={styles.desktopContainer}>
+        <View style={styles.desktopContent}>
+          {/* Left Column - Image & Tools */}
+          <View style={styles.leftColumn}>
+            <ScrollView
+              style={styles.leftScrollView}
+              contentContainerStyle={styles.leftScrollContent}
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={styles.previewContainerDesktop}>
+                <ImagePreview
+                  imageUri={imageUri}
+                  isLoading={isProcessing}
+                  onPickImage={() => pickImage(false)}
+                  onTakePhoto={() => pickImage(true)}
+                />
+              </View>
+
+              <EditToolbar
+                onRemoveBackground={handleRemoveBackground}
+                onGenerateVariations={handleGenerateVariations}
+                onDownload={handleDownload}
+                onSaveProduct={handleSaveProduct}
+                isProcessing={isProcessing || isGeneratingVariations}
+                hasImage={!!currentImagePath}
+                hasEdits={chatHistory.length > 0}
+              />
+
+              <VariationGrid
+                variations={variations}
+                selectedIndex={selectedVariationIndex}
+                onSelect={handleSelectVariation}
+                isLoading={isGeneratingVariations}
+                onGenerate={handleGenerateVariations}
+                disabled={!currentImagePath || isProcessing}
+              />
+            </ScrollView>
+          </View>
+
+          {/* Right Column - Chat */}
+          <View style={styles.rightColumn}>
+            <View style={styles.chatHeader}>
+              <Text style={styles.chatHeaderTitle}>AI Image Editor</Text>
+              <Text style={styles.chatHeaderSubtitle}>Describe changes you want to make</Text>
+            </View>
+            <View style={styles.chatContainerDesktop}>
+              <AIChatPanel
+                messages={chatHistory}
+                onSendMessage={handleSendMessage}
+                isProcessing={isProcessing}
+                disabled={!currentImagePath}
+              />
+            </View>
+          </View>
+        </View>
+      </View>
+    );
+  }
+
+  // Mobile layout
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -346,5 +430,68 @@ const styles = StyleSheet.create({
   },
   chatContainer: {
     height: 350,
+  },
+  // Desktop styles
+  desktopContainer: {
+    flex: 1,
+    backgroundColor: '#F2F2F7',
+  },
+  desktopContent: {
+    flex: 1,
+    flexDirection: 'row',
+    maxWidth: 1400,
+    alignSelf: 'center',
+    width: '100%',
+    padding: 24,
+    gap: 24,
+  },
+  leftColumn: {
+    flex: 1,
+    maxWidth: 600,
+  },
+  leftScrollView: {
+    flex: 1,
+  },
+  leftScrollContent: {
+    gap: 20,
+    paddingBottom: 24,
+  },
+  previewContainerDesktop: {
+    height: 400,
+  },
+  rightColumn: {
+    flex: 1,
+    maxWidth: 500,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    overflow: 'hidden',
+    ...(Platform.OS === 'web' ? {
+      boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+    } as any : {
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.08,
+      shadowRadius: 8,
+      elevation: 2,
+    }),
+  },
+  chatHeader: {
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E5EA',
+    backgroundColor: '#FAFAFA',
+  },
+  chatHeaderTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#000000',
+  },
+  chatHeaderSubtitle: {
+    fontSize: 14,
+    color: '#8E8E93',
+    marginTop: 4,
+  },
+  chatContainerDesktop: {
+    flex: 1,
   },
 });

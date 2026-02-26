@@ -1,4 +1,6 @@
-import { View, Image, StyleSheet, TouchableOpacity, Text, ActivityIndicator } from 'react-native';
+import { useState, useEffect } from 'react';
+import { View, Image, StyleSheet, TouchableOpacity, Text, ActivityIndicator, Platform } from 'react-native';
+import { getImageDataUrl } from '../../lib/imageStorage';
 
 type ImagePreviewProps = {
   imageUri: string | null;
@@ -8,7 +10,44 @@ type ImagePreviewProps = {
 };
 
 export function ImagePreview({ imageUri, isLoading, onPickImage, onTakePhoto }: ImagePreviewProps) {
-  if (isLoading) {
+  const [displayUri, setDisplayUri] = useState<string | null>(null);
+  const [imageLoading, setImageLoading] = useState(false);
+
+  useEffect(() => {
+    async function loadImage() {
+      if (!imageUri) {
+        setDisplayUri(null);
+        return;
+      }
+
+      if (Platform.OS === 'web') {
+        // On web, load from IndexedDB if it's a web-image URI
+        if (imageUri.startsWith('web-image://')) {
+          setImageLoading(true);
+          try {
+            const path = imageUri.replace('web-image://', '');
+            const dataUrl = await getImageDataUrl(path);
+            setDisplayUri(dataUrl);
+          } catch (error) {
+            console.error('Failed to load image:', error);
+            setDisplayUri(null);
+          } finally {
+            setImageLoading(false);
+          }
+        } else {
+          setDisplayUri(imageUri);
+        }
+      } else {
+        setDisplayUri(imageUri);
+      }
+    }
+
+    loadImage();
+  }, [imageUri]);
+
+  const isWeb = Platform.OS === 'web';
+
+  if (isLoading || imageLoading) {
     return (
       <View style={styles.container}>
         <View style={styles.loadingContainer}>
@@ -19,19 +58,24 @@ export function ImagePreview({ imageUri, isLoading, onPickImage, onTakePhoto }: 
     );
   }
 
-  if (!imageUri) {
+  if (!displayUri) {
     return (
       <View style={styles.container}>
         <View style={styles.placeholder}>
           <Text style={styles.placeholderIcon}>📷</Text>
           <Text style={styles.placeholderText}>Add a product image</Text>
+          <Text style={styles.placeholderHint}>
+            {isWeb ? 'Upload an image to get started' : 'Take a photo or choose from gallery'}
+          </Text>
           <View style={styles.buttonRow}>
             <TouchableOpacity style={styles.pickButton} onPress={onPickImage}>
-              <Text style={styles.pickButtonText}>Gallery</Text>
+              <Text style={styles.pickButtonText}>{isWeb ? 'Upload Image' : 'Gallery'}</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.pickButton} onPress={onTakePhoto}>
-              <Text style={styles.pickButtonText}>Camera</Text>
-            </TouchableOpacity>
+            {!isWeb && (
+              <TouchableOpacity style={styles.pickButton} onPress={onTakePhoto}>
+                <Text style={styles.pickButtonText}>Camera</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </View>
@@ -40,10 +84,10 @@ export function ImagePreview({ imageUri, isLoading, onPickImage, onTakePhoto }: 
 
   return (
     <View style={styles.container}>
-      <Image source={{ uri: imageUri }} style={styles.image} resizeMode="contain" />
+      <Image source={{ uri: displayUri }} style={styles.image} resizeMode="contain" />
       <View style={styles.changeImageRow}>
         <TouchableOpacity style={styles.changeButton} onPress={onPickImage}>
-          <Text style={styles.changeButtonText}>Change Image</Text>
+          <Text style={styles.changeButtonText}>{isWeb ? 'Upload New Image' : 'Change Image'}</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -69,8 +113,15 @@ const styles = StyleSheet.create({
   },
   placeholderText: {
     fontSize: 18,
+    color: '#FFFFFF',
+    marginBottom: 8,
+    fontWeight: '500',
+  },
+  placeholderHint: {
+    fontSize: 14,
     color: '#8E8E93',
     marginBottom: 24,
+    textAlign: 'center',
   },
   buttonRow: {
     flexDirection: 'row',

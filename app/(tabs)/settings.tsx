@@ -12,6 +12,7 @@ import {
   Platform,
 } from 'react-native';
 import { useSettingsStore, ToneOfVoice } from '../../store';
+import { useResponsive } from '../../lib/useResponsive';
 
 const TONE_OPTIONS: { value: ToneOfVoice; label: string }[] = [
   { value: 'professional', label: 'Professional' },
@@ -21,6 +22,8 @@ const TONE_OPTIONS: { value: ToneOfVoice; label: string }[] = [
 ];
 
 export default function SettingsScreen() {
+  const { isDesktop, spacing } = useResponsive();
+
   const {
     geminiApiKey,
     brandName,
@@ -36,14 +39,22 @@ export default function SettingsScreen() {
   const [brandNameInput, setBrandNameInput] = useState(brandName);
   const [showApiKey, setShowApiKey] = useState(false);
 
+  const showAlert = (title: string, message: string) => {
+    if (Platform.OS === 'web') {
+      window.alert(`${title}\n\n${message}`);
+    } else {
+      Alert.alert(title, message);
+    }
+  };
+
   const handleSaveApiKey = () => {
     setGeminiApiKey(apiKeyInput.trim());
-    Alert.alert('Saved', 'API key has been saved.');
+    showAlert('Saved', 'API key has been saved.');
   };
 
   const handleSaveBrandName = () => {
     setBrandName(brandNameInput.trim());
-    Alert.alert('Saved', 'Brand name has been saved.');
+    showAlert('Saved', 'Brand name has been saved.');
   };
 
   const maskApiKey = (key: string) => {
@@ -59,122 +70,145 @@ export default function SettingsScreen() {
     >
       <ScrollView
         style={styles.container}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          isDesktop && styles.contentDesktop
+        ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>API Configuration</Text>
-          <View style={styles.card}>
-            <Text style={styles.label}>Gemini API Key</Text>
-            <Text style={styles.hint}>
-              Get your key at aistudio.google.com/apikey
-            </Text>
-            <View style={styles.inputRow}>
-              <TextInput
-                style={styles.input}
-                value={showApiKey ? apiKeyInput : maskApiKey(apiKeyInput)}
-                onChangeText={setApiKeyInput}
-                placeholder="Enter your Gemini API key"
-                placeholderTextColor="#8E8E93"
-                secureTextEntry={!showApiKey}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-              <TouchableOpacity
-                style={styles.eyeButton}
-                onPress={() => setShowApiKey(!showApiKey)}
-              >
-                <Text style={styles.eyeIcon}>{showApiKey ? '👁️' : '👁️‍🗨️'}</Text>
-              </TouchableOpacity>
-            </View>
-            <TouchableOpacity style={styles.saveButton} onPress={handleSaveApiKey}>
-              <Text style={styles.saveButtonText}>Save API Key</Text>
-            </TouchableOpacity>
-            {geminiApiKey && (
-              <View style={styles.statusRow}>
-                <Text style={styles.statusIcon}>✓</Text>
-                <Text style={styles.statusText}>API key configured</Text>
-              </View>
-            )}
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>AI Quality</Text>
-          <View style={styles.card}>
-            <View style={styles.toggleRow}>
-              <View style={styles.toggleInfo}>
-                <Text style={styles.label}>Prefer Quality Mode</Text>
+        <View style={[styles.settingsGrid, isDesktop && styles.settingsGridDesktop]}>
+          {/* Left Column */}
+          <View style={[styles.column, isDesktop && styles.columnDesktop]}>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>API Configuration</Text>
+              <View style={[styles.card, isDesktop && styles.cardDesktop]}>
+                <Text style={styles.label}>Gemini API Key</Text>
                 <Text style={styles.hint}>
-                  {preferQuality
-                    ? 'Using gemini-3-pro-image-preview (higher quality)'
-                    : 'Using gemini-2.5-flash-image (faster)'}
+                  Get your key at{' '}
+                  <Text
+                    style={styles.link}
+                    onPress={() => {
+                      if (Platform.OS === 'web') {
+                        window.open('https://aistudio.google.com/apikey', '_blank');
+                      }
+                    }}
+                  >
+                    aistudio.google.com/apikey
+                  </Text>
                 </Text>
+                <View style={styles.inputRow}>
+                  <TextInput
+                    style={[styles.input, isDesktop && styles.inputDesktop]}
+                    value={showApiKey ? apiKeyInput : maskApiKey(apiKeyInput)}
+                    onChangeText={setApiKeyInput}
+                    placeholder="Enter your Gemini API key"
+                    placeholderTextColor="#8E8E93"
+                    secureTextEntry={!showApiKey}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  <TouchableOpacity
+                    style={styles.eyeButton}
+                    onPress={() => setShowApiKey(!showApiKey)}
+                  >
+                    <Text style={styles.eyeIcon}>{showApiKey ? '👁️' : '👁️‍🗨️'}</Text>
+                  </TouchableOpacity>
+                </View>
+                <TouchableOpacity style={styles.saveButton} onPress={handleSaveApiKey}>
+                  <Text style={styles.saveButtonText}>Save API Key</Text>
+                </TouchableOpacity>
+                {geminiApiKey && (
+                  <View style={styles.statusRow}>
+                    <Text style={styles.statusIcon}>✓</Text>
+                    <Text style={styles.statusText}>API key configured</Text>
+                  </View>
+                )}
               </View>
-              <Switch
-                value={preferQuality}
-                onValueChange={setPreferQuality}
-                trackColor={{ false: '#E5E5EA', true: '#34C759' }}
-                thumbColor="#FFFFFF"
-              />
+            </View>
+
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>AI Quality</Text>
+              <View style={[styles.card, isDesktop && styles.cardDesktop]}>
+                <View style={styles.toggleRow}>
+                  <View style={styles.toggleInfo}>
+                    <Text style={styles.label}>Prefer Quality Mode</Text>
+                    <Text style={styles.hint}>
+                      {preferQuality
+                        ? 'Using higher quality model (slower)'
+                        : 'Using faster model (recommended)'}
+                    </Text>
+                  </View>
+                  <Switch
+                    value={preferQuality}
+                    onValueChange={setPreferQuality}
+                    trackColor={{ false: '#E5E5EA', true: '#34C759' }}
+                    thumbColor="#FFFFFF"
+                  />
+                </View>
+              </View>
             </View>
           </View>
-        </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Brand Settings</Text>
-          <View style={styles.card}>
-            <Text style={styles.label}>Brand Name</Text>
-            <Text style={styles.hint}>
-              Used for consistent AI-generated content
-            </Text>
-            <TextInput
-              style={styles.input}
-              value={brandNameInput}
-              onChangeText={setBrandNameInput}
-              placeholder="Enter your brand name"
-              placeholderTextColor="#8E8E93"
-            />
-            <TouchableOpacity style={styles.saveButton} onPress={handleSaveBrandName}>
-              <Text style={styles.saveButtonText}>Save Brand Name</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Tone of Voice</Text>
-          <View style={styles.card}>
-            <Text style={styles.hint}>
-              Select the default tone for AI-generated listings
-            </Text>
-            <View style={styles.toneGrid}>
-              {TONE_OPTIONS.map((option) => (
-                <TouchableOpacity
-                  key={option.value}
-                  style={[
-                    styles.toneButton,
-                    defaultTone === option.value && styles.toneButtonActive,
-                  ]}
-                  onPress={() => setDefaultTone(option.value)}
-                >
-                  <Text
-                    style={[
-                      styles.toneButtonText,
-                      defaultTone === option.value && styles.toneButtonTextActive,
-                    ]}
-                  >
-                    {option.label}
-                  </Text>
+          {/* Right Column */}
+          <View style={[styles.column, isDesktop && styles.columnDesktop]}>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Brand Settings</Text>
+              <View style={[styles.card, isDesktop && styles.cardDesktop]}>
+                <Text style={styles.label}>Brand Name</Text>
+                <Text style={styles.hint}>
+                  Used for consistent AI-generated content
+                </Text>
+                <TextInput
+                  style={[styles.input, isDesktop && styles.inputDesktop]}
+                  value={brandNameInput}
+                  onChangeText={setBrandNameInput}
+                  placeholder="Enter your brand name"
+                  placeholderTextColor="#8E8E93"
+                />
+                <TouchableOpacity style={styles.saveButton} onPress={handleSaveBrandName}>
+                  <Text style={styles.saveButtonText}>Save Brand Name</Text>
                 </TouchableOpacity>
-              ))}
+              </View>
+            </View>
+
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Tone of Voice</Text>
+              <View style={[styles.card, isDesktop && styles.cardDesktop]}>
+                <Text style={styles.hint}>
+                  Select the default tone for AI-generated listings
+                </Text>
+                <View style={styles.toneGrid}>
+                  {TONE_OPTIONS.map((option) => (
+                    <TouchableOpacity
+                      key={option.value}
+                      style={[
+                        styles.toneButton,
+                        defaultTone === option.value && styles.toneButtonActive,
+                      ]}
+                      onPress={() => setDefaultTone(option.value)}
+                    >
+                      <Text
+                        style={[
+                          styles.toneButtonText,
+                          defaultTone === option.value && styles.toneButtonTextActive,
+                        ]}
+                      >
+                        {option.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
             </View>
           </View>
         </View>
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>AI Product Lister v1.0.0</Text>
-          <Text style={styles.footerHint}>All data is stored locally on your device</Text>
+          <Text style={styles.footerHint}>
+            {Platform.OS === 'web' ? 'Web Edition' : 'All data is stored locally on your device'}
+          </Text>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -192,6 +226,25 @@ const styles = StyleSheet.create({
   content: {
     padding: 16,
     paddingBottom: 100,
+  },
+  contentDesktop: {
+    padding: 32,
+    maxWidth: 1000,
+    alignSelf: 'center',
+    width: '100%',
+  },
+  settingsGrid: {
+    gap: 0,
+  },
+  settingsGridDesktop: {
+    flexDirection: 'row',
+    gap: 32,
+  },
+  column: {
+    flex: 1,
+  },
+  columnDesktop: {
+    flex: 1,
   },
   section: {
     marginBottom: 24,
@@ -215,6 +268,10 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 1,
   },
+  cardDesktop: {
+    padding: 24,
+    borderRadius: 16,
+  },
   label: {
     fontSize: 16,
     fontWeight: '600',
@@ -225,6 +282,10 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#8E8E93',
     marginBottom: 12,
+  },
+  link: {
+    color: '#007AFF',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}),
   },
   inputRow: {
     flexDirection: 'row',
@@ -238,6 +299,10 @@ const styles = StyleSheet.create({
     padding: 12,
     fontSize: 16,
     color: '#000000',
+  },
+  inputDesktop: {
+    padding: 14,
+    fontSize: 15,
   },
   eyeButton: {
     padding: 8,

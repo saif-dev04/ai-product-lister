@@ -1,5 +1,6 @@
 import { Tabs } from 'expo-router';
-import { Text, View } from 'react-native';
+import { Text, View, Platform } from 'react-native';
+import { useResponsive } from '../../lib/useResponsive';
 
 type TabIconProps = {
   name: string;
@@ -24,12 +25,28 @@ function TabIcon({ name, focused }: TabIconProps) {
 }
 
 export default function TabLayout() {
+  const { showSidebar, isDesktop } = useResponsive();
+
   return (
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: '#007AFF',
         tabBarInactiveTintColor: '#8E8E93',
         headerTintColor: '#000000',
+        // Hide tab bar on desktop when sidebar is shown
+        tabBarStyle: showSidebar ? { display: 'none' } : undefined,
+        // Better header for web
+        headerStyle: {
+          backgroundColor: '#FFFFFF',
+          ...(Platform.OS === 'web' ? {
+            borderBottomWidth: 1,
+            borderBottomColor: '#E5E5EA',
+          } : {}),
+        },
+        headerTitleStyle: {
+          fontWeight: '600',
+          fontSize: isDesktop ? 20 : 17,
+        },
       }}
     >
       <Tabs.Screen
@@ -37,7 +54,7 @@ export default function TabLayout() {
         options={{
           title: 'Home',
           tabBarIcon: ({ focused }) => <TabIcon name="Home" focused={focused} />,
-          headerTitle: 'AI Product Lister',
+          headerTitle: showSidebar ? 'Dashboard' : 'AI Product Lister',
         }}
       />
       <Tabs.Screen
